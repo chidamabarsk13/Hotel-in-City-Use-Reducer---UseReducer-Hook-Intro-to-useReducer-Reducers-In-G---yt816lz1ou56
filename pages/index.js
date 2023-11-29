@@ -1,6 +1,6 @@
 import React, { useReducer, useEffect } from "react";
 
-const initialState = { hotels: [], filteredHotels: [] };
+const initialState = { hotels: [], filteredHotels: [], loading: false, error: null };
 
 function reducer(state, action) {
   switch (action.type) {
@@ -9,6 +9,7 @@ function reducer(state, action) {
         ...state,
         hotels: action.payload,
         filteredHotels: action.payload,
+        loading: false,
       };
     case "FILTER":
       const { cityName } = action.payload;
@@ -19,6 +20,18 @@ function reducer(state, action) {
         ...state,
         filteredHotels,
       };
+    case "SET_LOADING":
+      return {
+        ...state,
+        loading: true,
+        error: null,
+      };
+    case "SET_ERROR":
+      return {
+        ...state,
+        loading: false,
+        error: action.payload,
+      };
     default:
       return state;
   }
@@ -27,18 +40,31 @@ function reducer(state, action) {
 export default function Home() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [cityName, setCityName] = React.useState("");
+  let timeoutId;
 
   useEffect(() => {
     // Fetch data from the API when the component mounts
-    fetch("https://content.newtonschool.co/v1/pr/63b85bcf735f93791e09caf4/hotels")
-      .then((response) => response.json())
-      .then((data) => {
+    dispatch({ type: "SET_LOADING" });
+
+    const fetchData = async () => {
+      try {
+        const response = await fetch("https://content.newtonschool.co/v1/pr/63b85bcf735f93791e09caf4/hotels");
+        const data = await response.json();
         dispatch({ type: "FETCH_SUCCESS", payload: data });
-      });
+      } catch (error) {
+        dispatch({ type: "SET_ERROR", payload: "Error fetching data" });
+      }
+    };
+
+    fetchData();
   }, []);
 
   const handleCityNameChange = (e) => {
     setCityName(e.target.value);
+
+    // Debounce the input changes to avoid frequent API requests
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(filterHotels, 500);
   };
 
   const filterHotels = () => {
@@ -54,6 +80,10 @@ export default function Home() {
         onChange={handleCityNameChange}
       />
       <button onClick={filterHotels}>Filter</button>
+
+      {state.loading && <p>Loading...</p>}
+      {state.error && <p>Error: {state.error}</p>}
+
       <ul>
         {state.filteredHotels.map((hotel, index) => (
           <li key={index}>{hotel.hotel_name}</li>
